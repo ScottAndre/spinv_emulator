@@ -1,7 +1,12 @@
-#ifndef E101_CPU8080
-#define E101_CPU8080
+#ifndef SPINV_CPU8080
+#define SPINV_CPU8080
 
 #include <stdint.h>
+
+#define CYCLES_PER_SECOND 2000000 /* 2 MHz */
+#define CYCLE_LENGTH 500 /* 500 ns per cycle */
+
+#define NUM_OF_OPCODES 0x100
 
 typedef struct { /* z:1 means z is exactly 1 bit. z, and the following five registers, will be packed into a single byte as they only take up 8 bits total. */
 	uint8_t z:1;   /* ZERO - did the last instruction equal 0? */
@@ -13,6 +18,7 @@ typedef struct { /* z:1 means z is exactly 1 bit. z, and the following five regi
 } Flags;
 
 typedef struct {
+	/* registers */
 	uint8_t  b;  /* B & C - multi-purpose register pair */
 	uint8_t  c;
 	uint8_t  d;  /* D & E - multi-purpose register pair */
@@ -22,8 +28,13 @@ typedef struct {
 	uint8_t  a;  /* ACCUMULATOR - stores the result of arithmetic operations */
 	uint16_t sp; /* STACK POINTER - address of top of stack */
 	uint16_t pc; /* PROGRAM COUNTER - address of current instruction */
+	/* flags */
 	Flags    flags;
-	uint8_t  int_enable; /* are interrupts enabled? */
+	/* CPU state - interrupt handling */
+	uint8_t  interrupt_instruction[3];
+	uint8_t  inte:1; /* are interrupts enabled? named so because the actual bit is named INTE on an 8080 CPU */
+	uint8_t  has_interrupt:1; /* has an interrupt occurred? */
+	uint8_t  halted:1; /* is the CPU halted? */
 } CPU;
 /* M - refers to the memory contents at (HL) */
 /* PSW (Program Status Word) - refers to A and FLAGS as a two-byte pair */
@@ -31,7 +42,7 @@ typedef struct {
 void initializeCPU(CPU *cpu);
 void printCPU(CPU *cpu, uint8_t *mem);
 
-int emulate(CPU *cpu, uint8_t *mem);
+uint8_t emulate(CPU *cpu, uint8_t *mem);
 
 /* operations */
 

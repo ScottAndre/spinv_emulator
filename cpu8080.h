@@ -1,6 +1,8 @@
 #ifndef SPINV_CPU8080
 #define SPINV_CPU8080
 
+#include "interrupts.h"
+
 #include <stdint.h>
 
 #define CYCLES_PER_SECOND 2000000 /* 2 MHz */
@@ -32,7 +34,7 @@ typedef struct {
 	Flags    flags;
 	/* CPU state - interrupt handling */
 	uint8_t  interrupt_instruction[3];
-	uint8_t  inte:1; /* are interrupts enabled? named so because the actual bit is named INTE on an 8080 CPU */
+	//uint8_t  inte:1; /* are interrupts enabled? named so because the actual bit is named INTE on an 8080 CPU - now handled by interrupts.h */
 	uint8_t  has_interrupt:1; /* has an interrupt occurred? */
 	uint8_t  halted:1; /* is the CPU halted? */
 } CPU;
@@ -42,7 +44,7 @@ typedef struct {
 void initializeCPU(CPU *cpu);
 void printCPU(CPU *cpu, uint8_t *mem);
 
-uint8_t emulate(CPU *cpu, uint8_t *mem);
+uint8_t emulate(CPU *cpu, uint8_t *mem, Interrupt *interrupts);
 
 /* operations */
 
@@ -150,8 +152,8 @@ void OUT(CPU *cpu, uint8_t port);
 void RIM(CPU *cpu);
 void SIM(CPU *cpu);
 
-void DI(CPU *cpu);
-void EI(CPU *cpu);
+void DI(CPU *cpu, Interrupt *interrupts);
+void EI(CPU *cpu, Interrupt *interrupts);
 
 void HLT(CPU *cpu);
 

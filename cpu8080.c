@@ -1,12 +1,13 @@
 #include "cpu8080.h"
 #include "disassembler8080.h"
 #include "ports.h"
+#include "interrupts.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-//#define DEBUG 1
+//#define DEBUG
 
 void initializeOpLengths(uint8_t *lengths);
 void initializeOpCycles(uint8_t *cycles);
@@ -50,7 +51,7 @@ void initializeCPU(CPU *cpu) {
 	cpu->flags.cy = 0;
 	cpu->flags.ac = 0;
 	memset(&cpu->interrupt_instruction[0], 0x00, 3);
-	cpu->inte = 1;
+	//cpu->inte = 1;
 	cpu->has_interrupt = 0;
 	cpu->halted = 0;
 
@@ -85,17 +86,35 @@ void printOpcodeInfo(uint16_t current_pc, uint8_t *opcode) {
 	//fprintf(stdout, "#--------------------\n");
 }
 
-uint8_t emulate(CPU *cpu, uint8_t *mem) {
+uint8_t emulate(CPU *cpu, uint8_t *mem, Interrupt *interrupts) {
+
+	if(cpu->halted) {
+		return opCycles[0x00]; // for the time being, we'll emulate a halted CPU as if it was just executing NOPs. It'll probably never come up.
+	}
 
 	cycle_override = 255;
 
-	uint8_t *opcode = &mem[cpu->pc];
+	uint8_t *opcode;
+
+	if(cpu->has_interrupt) {
+		opcode = &cpu->interrupt_instruction[0];
+		cpu->has_interrupt = 0;
+	}
+	else {
+		opcode = &mem[cpu->pc];
+		cpu->pc += opLengths[opcode[0]];
+	}
+
 	#ifndef DEBUG
 	char disassembled[32];
 	disassemble(opcode, disassembled);
-	fprintf(stdout, "0x%.4x: %s\n", cpu->pc, disassembled);
+	if(cpu->has_interrupt) {
+		fprintf(stdout, "Interrupt! %s\n", disassembled);
+	}
+	else {
+		fprintf(stdout, "0x%.4x: %s\n", cpu->pc - opLengths[opcode[0]], disassembled);
+	}
 	#endif
-	cpu->pc += opLengths[opcode[0]];
 
 	switch(opcode[0]) { /* maybe make this a lookup table with function pointers? probably doesn't matter for an arcade emulator */
 		case 0x00: NOP(cpu); 											break;
@@ -332,7 +351,7 @@ uint8_t emulate(CPU *cpu, uint8_t *mem) {
 		case 0xf0: RP(cpu, mem); 										break;
 		case 0xf1: POP(cpu, mem, 'P'); 									break;
 		case 0xf2: JP(cpu, to_double_word(opcode[1], opcode[2])); 		break;
-		case 0xf3: DI(cpu); 											break;
+		case 0xf3: DI(cpu, interrupts); 								break;
 		case 0xf4: CP(cpu, mem, to_double_word(opcode[1], opcode[2])); 	break;
 		case 0xf5: PUSH(cpu, mem, 'P'); 								break;
 		case 0xf6: ORI(cpu, opcode[1]); 								break;
@@ -340,14 +359,14 @@ uint8_t emulate(CPU *cpu, uint8_t *mem) {
 		case 0xf8: RM(cpu, mem); 										break;
 		case 0xf9: SPHL(cpu); 											break;
 		case 0xfa: JM(cpu, to_double_word(opcode[1], opcode[2])); 		break;
-		case 0xfb: EI(cpu); 											break;
+		case 0xfb: EI(cpu, interrupts); 								break;
 		case 0xfc: CM(cpu, mem, to_double_word(opcode[1], opcode[2])); 	break;
 		case 0xfe: CPI(cpu, opcode[1]); 								break;
 		case 0xff: RST(cpu, mem, 7); 									break;
 		default: unimplemented(cpu, opcode[0]); 						break;
 	}
 
-	#if DEBUG
+	#ifdef DEBUG
 	printOpcodeInfo(cpu->pc - opLengths[opcode[0]], opcode);
 	printCPU(cpu, mem);
 
@@ -1265,13 +1284,15 @@ void SIM(CPU *cpu) {
 }
 
 /* DI - disable interrupts. does what it says on the tin. -- 4 cycles -- */
-void DI(CPU *cpu) {
-	cpu->inte = 0;
+void DI(CPU *cpu, Interrupt *interrupts) {
+	disable_interrupts(interrupts);
+	//cpu->inte = 0;
 }
 
 /* EI - enable interrupts. does what it says on the tin. -- 4 cycles -- */
-void EI(CPU *cpu) {
-	cpu->inte = 1;
+void EI(CPU *cpu, Interrupt *interrupts) {
+	enable_interrupts(interrupts);
+	//cpu->inte = 1;
 }
 
 /* HLT - halts the processor after the current cycle. PC has the address of the next sequential operation, but it will not get executed. The processor can only be restarted via interrupt or RESET. -- 7 cycles */

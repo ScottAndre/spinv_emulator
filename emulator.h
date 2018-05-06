@@ -17,8 +17,8 @@ typedef struct {
 	uint8_t *memory;
 	Interrupt *interrupts;
 	GameControl *game_control;
-	sem_t *sync;
-	int *exit;
+	sem_t *thread_sync;
+	int *thread_exit;
 } GameState;
 
 #endif

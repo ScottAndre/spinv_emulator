@@ -15,7 +15,7 @@ $(ODIR)/emulator.o : emulator.c emulator.h cpu8080.h interrupts.h controls.h
 	$(OCOMPILE) emulator.c
 
 $(ODIR)/cpu8080.o : cpu8080.c cpu8080.h disassembler8080.h ports.h interrupts.h
-	$(OCOMPILE) cpu8080.c
+	$(OCOMPILE) -D CPU_PRINT cpu8080.c
 
 $(ODIR)/display.o : display.c display.h controls.h
 	$(OCOMPILE) display.c

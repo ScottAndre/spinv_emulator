@@ -49,6 +49,8 @@ int main(int argc, char **argv) {
 	/* Initialize machine memory, and read program into ROM
 	 * ROM: $0000-$1fff
 	 * RAM: $2000-$3fff
+	 * TODO: RAM Mirror: $4000-$7fff
+	 *   implementing this will require abstracting writes to memory into its own function, which would probably be a good thing for thread-safety anyway
 	 */
 	uint8_t *memory = calloc(0x4000, sizeof(uint8_t));
 
@@ -90,12 +92,12 @@ int main(int argc, char **argv) {
 	game_state->game_control = game_control;
 
 	/* initialize thread synchronization variables */
-	sem_t *sync = malloc(sizeof(sem_t));
-	sem_init(sync, 0, 0); /* TODO: check for failure */
-	game_state->sync = sync;
-	int *exit = malloc(sizeof(int));
-	*exit = 0;
-	game_state->exit = exit;
+	sem_t *thread_sync = malloc(sizeof(sem_t));
+	sem_init(thread_sync, 0, 0); /* TODO: check for failure */
+	game_state->thread_sync = thread_sync;
+	int *thread_exit = malloc(sizeof(int));
+	*thread_exit = 0;
+	game_state->thread_exit = thread_exit;
 
 	/* Initialize display */
 	GtkApplication *app;
@@ -118,7 +120,7 @@ int main(int argc, char **argv) {
 	 * ----- BEGIN EMULATION -----
 	 */
 	
-	sem_post(sync); /* TODO: check for failure */
+	sem_post(game_state->thread_sync); /* TODO: check for failure */
 
 	int status = run_display(app, argc, argv);
 
@@ -126,7 +128,7 @@ int main(int argc, char **argv) {
 	 * ----- CLEAN UP RESOURCES -----
 	 */
 
-	*exit = 1;
+	*game_state->thread_exit = 1;
 
 	void *cpu_success;
 	success = pthread_join(cpu_thread, &cpu_success);
@@ -141,12 +143,13 @@ int main(int argc, char **argv) {
 	destroy_game_control(game_control);
 	destroy_interrupts(interrupts);
 
-	free(exit);
-	free(sync);
+	free(thread_exit);
+	free(thread_sync);
 	free(game_state);
 	free(game_control);
 	free(interrupts);
 	free(memory);
+	free(cpu);
 
 	return status;
 }
@@ -157,7 +160,7 @@ void *emulate_cpu(void *state) {
 	Interrupt *interrupts = game_state->interrupts;
 	int success;
 
-	sem_wait(game_state->sync); /* TODO: check for failure */
+	sem_wait(game_state->thread_sync); /* TODO: check for failure */
 
 	/* main emulation loop */
 	while(1) {
@@ -167,7 +170,7 @@ void *emulate_cpu(void *state) {
 		timespec_get(&now, TIME_UTC);
 
 		/* check if emulation has stopped */
-		if(*game_state->exit == 1) {
+		if(*game_state->thread_exit == 1) {
 			break;
 		}
 

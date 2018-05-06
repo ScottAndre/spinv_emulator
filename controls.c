@@ -12,7 +12,7 @@ do {                                                                            
 		fprintf(stderr, "ERROR: Failed to lock control mutex before writing.\n");  \
 	}                                                                              \
 	code;                                                                          \
-	success = pthread_mutex_unlock(&game_control->mutex);                            \
+	success = pthread_mutex_unlock(&game_control->mutex);                          \
 	if(success != 0) {                                                             \
 		fprintf(stderr, "ERROR: Failed to unlock control mutex after writing.\n"); \
 	}                                                                              \

@@ -7,7 +7,8 @@
 #include <string.h>
 #include <stdio.h>
 
-//#define DEBUG
+//#define CPU_DEBUG // this flag enables stepping through instructions, and prints extensive information about the CPU.
+//#define CPU_PRINT // this flag enables a print-out of the current PC and instruction being executed.
 
 void initializeOpLengths(uint8_t *lengths);
 void initializeOpCycles(uint8_t *cycles);
@@ -105,7 +106,7 @@ uint8_t emulate(CPU *cpu, uint8_t *mem, Interrupt *interrupts) {
 		cpu->pc += opLengths[opcode[0]];
 	}
 
-	#ifndef DEBUG
+	#ifdef CPU_PRINT
 	char disassembled[32];
 	disassemble(opcode, disassembled);
 	if(cpu->has_interrupt) {
@@ -366,7 +367,7 @@ uint8_t emulate(CPU *cpu, uint8_t *mem, Interrupt *interrupts) {
 		default: unimplemented(cpu, opcode[0]); 						break;
 	}
 
-	#ifdef DEBUG
+	#ifdef CPU_DEBUG
 	printOpcodeInfo(cpu->pc - opLengths[opcode[0]], opcode);
 	printCPU(cpu, mem);
 

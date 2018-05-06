@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define TOP 1
-#define BOTTOM 0
+#define DRAW_TOP 1
+#define DRAW_BOTTOM 0
 
 typedef struct {
 	GtkWidget *screen;
@@ -18,12 +18,19 @@ static cairo_surface_t *surface = NULL;
 static guint timeout_id;
 static RefreshData refresh_data;
 
+static gdouble display_scale;
+
 static gboolean configure_event(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
 	if(surface) {
 		cairo_surface_destroy(surface);
 	}
 
-	surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget), CAIRO_CONTENT_COLOR, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+	/* WIDTH and HEIGHT are reversed here, since the display is rotated 90 degrees in the cabinet */
+	gdouble xscale = ((gdouble)event->width)/DISPLAY_HEIGHT;
+	gdouble yscale = ((gdouble)event->height)/DISPLAY_WIDTH;
+	display_scale = xscale < yscale ? xscale : yscale;
+
+	surface = gdk_window_create_similar_surface(gtk_widget_get_window(widget), CAIRO_CONTENT_COLOR, DISPLAY_HEIGHT * display_scale, DISPLAY_WIDTH * display_scale);
 
 	return TRUE;
 }
@@ -33,9 +40,10 @@ static gboolean draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
 	cairo_set_source_surface(cr, surface, 0, 0);
 	cairo_paint(cr);
 
-	return TRUE; /* returning FALSE here causes the application to hang, and I don't know why - actually this does not seem to have an effect */
+	return FALSE;
 }
 
+/* TODO: rotate CCW 90 degrees */
 /* TODO: allow the display to scale if the window is resized - look up cairo transforms */
 static gboolean refresh(gpointer data) {
 	//fprintf(stderr, "Refresh\n");
@@ -43,28 +51,26 @@ static gboolean refresh(gpointer data) {
 
 	cairo_t *cr = cairo_create(surface);
 
-	//static int a = 0;
-	//rd->memory[VRAM_START_ADDRESS + a] = 0xf0;
-	//a++;
-
-	static int draw_side = TOP;
+	static int draw_side = DRAW_TOP;
 	int line_start, line_end;
-	if(draw_side == TOP) {
+	if(draw_side == DRAW_TOP) {
 		line_start = 0;
 		line_end = DISPLAY_HEIGHT/2;
 	}
-	else { /* draw_side == BOTTOM */
+	else { /* draw_side == DRAW_BOTTOM */
 		line_start = DISPLAY_HEIGHT/2;
 		line_end = DISPLAY_HEIGHT;
 	}
 
 	int i, j, b;
-	cairo_set_line_width(cr, 1);
+	cairo_set_line_cap(cr, CAIRO_LINE_CAP_SQUARE);
+	cairo_set_line_width(cr, display_scale);
 	for(j = line_start; j < line_end; j++) {
 		//fprintf(stderr, "Drawing line %d\n", j);
 		uint8_t previous_bit = 0;
 		cairo_set_source_rgb(cr, 0, 0, 0); /* Initialize the new line - we'll assume the first pixel will be black. If it's not, no big deal */
-		cairo_move_to(cr, 0, j); /* Begin a new line */
+		//cairo_move_to(cr, 0, j); /* Begin a new line */
+		cairo_move_to(cr, j * display_scale, (DISPLAY_WIDTH - 1) * display_scale); /* rotated, scaled */
 
 		for(i = 0; i < DISPLAY_WIDTH/8; i++) {
 			uint8_t byte = rd->memory[VRAM_START_ADDRESS + j*(DISPLAY_WIDTH/8) + i];
@@ -73,7 +79,8 @@ static gboolean refresh(gpointer data) {
 				uint8_t bit = (byte >> b) & 0x1;
 				if(bit != previous_bit) {
 					if(i != 0 || b != 0) { /* no need to draw if the first bit is different from our presupposition */
-						cairo_line_to(cr, i*8 + b - 1, j);
+						//cairo_line_to(cr, i*8 + b - 1, j);
+						cairo_line_to(cr, j * display_scale, (DISPLAY_WIDTH - (i*8 + b)) * display_scale); /* rotated, scaled */
 						cairo_stroke(cr);
 					}
 					if(bit == 0) {
@@ -81,22 +88,24 @@ static gboolean refresh(gpointer data) {
 					} else {
 						cairo_set_source_rgb(cr, 1, 1, 1);
 					}
-					cairo_move_to(cr, i*8 + b, j);
+					//cairo_move_to(cr, i*8 + b, j);
+					cairo_move_to(cr, j * display_scale, (DISPLAY_WIDTH - (i*8 + b) - 1) * display_scale); /* rotated, scaled */
 					previous_bit = bit;
 				}
 			}
 		}
 
-		cairo_line_to(cr, i*8 - 1, j); /* Finish drawing the line */
+		//cairo_line_to(cr, i*8 - 1, j); /* Finish drawing the line */
+		cairo_line_to(cr, j * display_scale, 0); /* rotated, scaled */
 		cairo_stroke(cr);
 	}
 
-	if(draw_side == TOP) {
-		draw_side = BOTTOM;
+	if(draw_side == DRAW_TOP) {
+		draw_side = DRAW_BOTTOM;
 		trigger_hblank(rd->interrupts);
 	}
-	else { /* draw_side == BOTTOM */
-		draw_side = TOP;
+	else { /* draw_side == DRAW_BOTTOM */
+		draw_side = DRAW_TOP;
 		trigger_vblank(rd->interrupts);
 	}
 
@@ -126,11 +135,10 @@ static void activate(GtkApplication *app, gpointer user_data) {
 	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
 
 	game_screen = gtk_drawing_area_new();
-	gtk_widget_set_size_request(game_screen, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+	/* WIDTH and HEIGHT are reversed due to the screen being rotated in the cabinet, in case that wasn't abundantly clear by now */
+	gtk_widget_set_size_request(game_screen, DISPLAY_HEIGHT, DISPLAY_WIDTH);
 	gtk_container_add(GTK_CONTAINER(window), game_screen);
-
-	/* Should be done here, I'm not sure I can rely on configure-event firing before the first call to refresh */
-	//surface = gdk_window_create_similar_surface(gtk_widget_get_window(game_screen), CAIRO_CONTENT_COLOR, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+	display_scale = 1.0; /* initial window scale is 1:1 with original Space Invaders display */
 
 	g_signal_connect(game_screen, "draw", G_CALLBACK(draw), NULL);
 	g_signal_connect(game_screen, "configure_event", G_CALLBACK(configure_event), NULL);

@@ -1,5 +1,6 @@
 #include "ports.h"
 
+#include <pthread.h>
 #include <stdio.h>
 
 typedef struct {
@@ -71,7 +72,7 @@ uint8_t read_input1() {
 	PlayerControl p1_control = game_control->player1;
 	PlayerControl p2_control = game_control->player2;
 	uint8_t status = 0x08;
-	if(credit > 0) {
+	if(credit == 1) {
 		status |= 0x01;
 	}
 	if(p2_control.start == 1) {

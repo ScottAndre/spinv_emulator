@@ -11,13 +11,14 @@ OCOMPILE=$(CC) $(CFLAGS) -o $@ -c
 spinv_emulator : $(ODIR)/emulator.o $(ODIR)/cpu8080.o $(ODIR)/display.o $(ODIR)/interrupts.o $(ODIR)/ports.o $(ODIR)/controls.o $(ODIR)/disassembler8080.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-$(ODIR)/emulator.o : emulator.c emulator.h cpu8080.h interrupts.h controls.h
+$(ODIR)/emulator.o : emulator.c emulator.h cpu8080.h interrupts.h controls.h display.h ports.h
 	$(OCOMPILE) emulator.c
 
 $(ODIR)/cpu8080.o : cpu8080.c cpu8080.h disassembler8080.h ports.h interrupts.h
-	$(OCOMPILE) -D CPU_PRINT cpu8080.c
+	$(OCOMPILE) cpu8080.c
+	#$(OCOMPILE) -D CPU_PRINT cpu8080.c
 
-$(ODIR)/display.o : display.c display.h controls.h
+$(ODIR)/display.o : display.c display.h controls.h emulator.h
 	$(OCOMPILE) display.c
 
 $(ODIR)/interrupts.o : interrupts.c interrupts.h

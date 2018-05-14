@@ -1,5 +1,6 @@
-/* Intel 8080 Space Invaders arcade machine emulator.
- * Written by Scott Andre * Created Dec 18 2016
+/* Space Invaders arcade machine emulator.
+ * Written by Scott Andre 
+ * Created Dec 18 2016
  */
 
 #include "emulator.h"
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
 	GameControl *game_control = malloc(sizeof(GameControl));
 	init_game_control(game_control);
 	init_ports(game_control);
+	set_control_debug_memory_pointer(memory);
 
 	GameState *game_state = malloc(sizeof(GameState));
 	game_state->cpu = cpu;
@@ -201,6 +203,9 @@ void *emulate_cpu(void *state) {
 			success = nanosleep(&instruction_time, NULL);
 			if(success == -1) {
 				fprintf(stderr, "WARNING: nanosleep unable to sleep full duration of elapsed cycles.\n%s\n", strerror(errno));
+				if(errno == EINVAL) {
+					fprintf(stderr, "Argument given: %ld seconds %ld nanoseconds\n", instruction_time.tv_sec, instruction_time.tv_nsec);
+				}
 			}
 		}
 	}

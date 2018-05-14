@@ -19,6 +19,9 @@
 #define P2_LEFT GDK_KEY_KP_4
 #define P2_RIGHT GDK_KEY_KP_6
 
+/* Debug controls */
+#define DUMP_VRAM GDK_KEY_v
+
 /* represents all controls for a single player */
 typedef struct {
 	uint8_t start:1;
@@ -40,5 +43,8 @@ void init_game_control(GameControl *game_control);
 void destroy_game_control(GameControl *game_control);
 
 void set_control_events(GtkWidget *widget, GameControl *game_control);
+
+/* TODO DELETE */
+void set_control_debug_memory_pointer(uint8_t *memory);
 
 #endif
